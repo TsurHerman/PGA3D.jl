@@ -1,0 +1,7 @@
+name = "PGA3D"
+uuid = "b0469c79-58aa-4cf6-ad55-df9a84b05cda"
+authors = ["Tsur Herman <tsur@sparx.ai>"]
+version = "0.1.0"
+
+[deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
