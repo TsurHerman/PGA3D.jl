@@ -46,3 +46,26 @@ make_type(SIG,ct::Tuple) = begin
     idx = findfirst(isequal([ct...]),collect(combinations(ntuple(i->i,length(SIG)),grade)))
     return E{SIG,grade,idx}
 end
+
+
+
+
+unroll_product(fn::String,a::String,alen::Int,b::String,blen::Int) = begin 
+    foldl("$fn($a[$i],$b[$j])" for i in 1:alen, j in 1:blen) do l,r
+        l * " + " * r
+    end |> Meta.parse
+end
+
+unroll_elementwise_product(fn::String,a::String,b::String,len) = begin 
+    foldl("$fn($a[$i],$b[$i])" for i in 1:len) do l,r
+        l * " + " * r
+    end |> Meta.parse
+end
+
+unroll_add_idx(typ::String,a::String,alen::Int,b::String,idx::Int) = begin
+    sexpr = map(1:alen) do i 
+        "$a[$i],"
+    end
+    sexpr[idx] = "$a[$idx] + $b ," 
+    "$typ( ($(prod(sexpr))) )"
+end |> Meta.parse

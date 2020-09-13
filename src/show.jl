@@ -6,7 +6,7 @@ end
 
 export to_symbol
 @generated to_symbol(SIG::NTuple{N,Int} where N) = begin
-    map(x->iszero(x) ? Char(8709) : x>0 ? "+" : "-",(1,1,1,0)) |> prod
+    map(x->iszero(x) ? "0" : x>0 ? "+" : "-",(1,1,1,0)) |> prod
 end
 
 Base.show(io::IO, e::E)  = begin
