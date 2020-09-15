@@ -41,8 +41,3 @@ b1 = p(1,2,3,4)
 b2 = p(13.,.32,3.3,2.4)
 
 
-
-
-
-# Base.getindex(e::Blade,i::Int) = e[Val{i}()]
-# @generated Base.getindex(e::Blade,i::Val{T}) where T = :(E{sig(e),grade(e),T}(e.v[T]))

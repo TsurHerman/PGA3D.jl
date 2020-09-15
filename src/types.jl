@@ -12,6 +12,7 @@ metatype(a) = begin
     end
     return b
 end
+export metatype
 
 meta_params(a,i) = metatype(a).parameters[i]
 
@@ -31,13 +32,14 @@ abstract type GradeElement{SIG,GRADE,IDX} <: Grade{SIG,GRADE} end
 @generated Base.length(e::Meta{GradeElement}) = 1
 @generated internal_size(e::Meta{GradeElement}) = 1
 
-@generated FieldType(e::Meta{GradedAlgebra}) = isconcretetype(e) ? metatype(e).parameters[end] : Type{T} where T
+@generated FieldType(e::Meta{GradedAlgebra}) = metatype(e).parameters[end]
 export FieldType
 
 
 
 struct E{SIG,GRADE,IDX,T} <: GradeElement{SIG,GRADE,IDX} #IDX is the index inside the GRADE
     v::T
+    E{SIG,GRADE,IDX,T}(arg::Union{T,Tuple{T}}) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(arg[1])
 end
 export E
 @generated E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} = begin
@@ -68,7 +70,7 @@ end
         reinterpret_tuple($TType,e.v)
     end
 end
-Base.getindex(e::Blade,i::Int) = as_tuple(e)[i]
+Base.getindex(e::Blade,i::Int) = E{sig(e),grade(e),i,typeof(e.v[i])}(e.v[i])
     
 
 
@@ -92,4 +94,20 @@ end
     end
 end
 Base.getindex(e::MultiBlade,i::Int) = as_tuple(e)[i+1]
-    
+
+
+
+
+
+@generated similar_type(e::Meta{E},::Type{T}) where T = begin
+    E{sig(metatype(e)),grade(metatype(e)),index(metatype(e)),T}
+end
+@generated similar_type(e::Meta{Blade},::Type{T}) where T = begin
+    Blade{sig(metatype(e)),grade(metatype(e)),length(metatype(e)),T}
+end
+@generated similar_type(e::Meta{MultiBlade},::Type{T}) where {T} = begin
+    MultiBlade{sig(metatype(e)),internal_size(metatype(e)),T}
+end
+export similar_type
+
+
