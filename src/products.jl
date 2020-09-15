@@ -32,6 +32,7 @@ end
 # products
 
 @generated wedge(a::Algebra{SIG} , b::Algebra{SIG}) where {SIG} = begin
+
     unroll_product("wedge","a",length(a),"b",length(b))
 end
 
@@ -43,3 +44,14 @@ Base.:*(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
     a ⋅ b + a ∧ b
 end
 
+
+
+
+
+
+
+unroll_product(fn::String,a::String,alen::Int,b::String,blen::Int) = begin 
+    foldl("$fn($a[$i],$b[$j])" for i in alen:-1:1, j in 1:blen) do l,r
+        l * " + " * r
+    end |> Base.Meta.parse
+end

@@ -12,12 +12,16 @@ v3 = E{SIG,1,3}(1)
 v4 = E{SIG,1,4}(1)
 
 v12 = E{SIG,2,1}(1)
-v13 = E{SIG,2,2}(1.4)
-v14 = E{SIG,2,3}(1.4)
-v23 = E{SIG,2,4}(1.4)
+v13 = E{SIG,2,2}(1)
+v14 = E{SIG,2,3}(1)
+v23 = E{SIG,2,4}(1)
+v24 = E{SIG,2,5}(1)
+v = E{SIG,2,6}(1)
+v123 = E{SIG,3,1}(1)
 
 
-wedge(v2,v1)
+
+# wedge(v2,v1)
 
 
 
@@ -29,3 +33,16 @@ b1 = f(1,2,3,4)
 b2 = f(1,1,1,1)
 f(b) = Blade((-b.v[1],-b.v[2],-b.v[3],-b.v[4]))
 
+
+
+p(a,b,c,d) = a*v1+b*v2+c*v3+d*v4
+
+b1 = p(1,2,3,4)
+b2 = p(13.,.32,3.3,2.4)
+
+
+
+
+
+# Base.getindex(e::Blade,i::Int) = e[Val{i}()]
+# @generated Base.getindex(e::Blade,i::Val{T}) where T = :(E{sig(e),grade(e),T}(e.v[T]))

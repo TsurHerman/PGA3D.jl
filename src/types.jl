@@ -1,42 +1,95 @@
-abstract type Algebra{SIG} end
-struct EZero end
+using Base
 
-struct E{SIG,GRADE,IDX,T} <: Algebra{SIG} #IDX is the index inside the GRADE
+# Meta mechanism to simplify access to type meta parameters 
+# from type instances(values) UnionAll types (where types) and Type{} types (in generated functions)
+
+const Meta = Union{T,Type{S}} where {T,S<:T}
+
+metatype(a) = begin
+    b = Base.unwrap_unionall(a)
+    while(b.name === Type.body.name)
+        b = Base.unwrap_unionall(b.parameters[1])
+    end
+    return b
+end
+
+meta_params(a,i) = metatype(a).parameters[i]
+
+
+abstract type GradedAlgebra{SIG} <: Number end
+@generated sig(e::Meta{GradedAlgebra}) = meta_params(e,1)
+@generated Base.length(e::Meta{GradedAlgebra}) = length(sig(metatype(e))) + 1
+@generated internal_size(e::Meta{GradedAlgebra}) = 2^length(sig(metatype(e)))
+
+abstract type Grade{SIG,GRADE} <: GradedAlgebra{SIG} end
+@generated grade(e::Meta{Grade}) = meta_params(e,2)
+@generated Base.length(e::Meta{Grade}) = binomial(length(sig(metatype(e))),grade(metatype(e)))
+@generated internal_size(e::Meta{Grade}) = length(metatype(e))
+
+abstract type GradeElement{SIG,GRADE,IDX} <: Grade{SIG,GRADE} end
+@generated index(e::Meta{GradeElement}) = meta_params(e,3)
+@generated Base.length(e::Meta{GradeElement}) = 1
+@generated internal_size(e::Meta{GradeElement}) = 1
+
+@generated FieldType(e::Meta{GradedAlgebra}) = isconcretetype(e) ? metatype(e).parameters[end] : Type{T} where T
+export FieldType
+
+
+
+struct E{SIG,GRADE,IDX,T} <: GradeElement{SIG,GRADE,IDX} #IDX is the index inside the GRADE
     v::T
-    E{SIG,GRADE,IDX}(val) where {SIG,GRADE,IDX} = new{SIG,GRADE,IDX,typeof(val)}(val)
-    E{SIG,GRADE,IDX,T}(val) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(T(val))
 end
 export E
-grade(e::E) = grade(typeof(e))
-grade(e::Type{T}) where T<:E = e.parameters[2]
-Base.getindex(e::E,::Int) = e
-export grade
-
-
-struct Blade{SIG,GRADE,T<:NTuple{N,E{SIG,GRADE}} where N} <: Algebra{SIG}
-    v::T
-    Blade{SIG,GRADE}(args...) where {SIG,GRADE}= begin
-        _v = ntuple(i->E{SIG,GRADE,i}(args[i]),length(args))
-        new{SIG,GRADE,typeof(_v)}(_v)
+@generated E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} = begin
+    return quote
+        E{SIG,GRADE,IDX,$arg}(arg)
     end
-    Blade(args::NTuple{N,E{SIG,GRADE}} where N) where {SIG,GRADE}  = new{SIG,GRADE,typeof(args)}(args) 
-    Blade(x::Blade) = x
+end 
+
+
+
+
+struct Blade{SIG,GRADE,N,T} <: Grade{SIG,GRADE}
+    v::NTuple{N,T}
 end
 export Blade
-Base.length(b::Blade) = length(typeof(b))
-Base.length(::Type{Blade{SIG,GRADE,T}}) where {SIG,GRADE,T} = binomial(length(SIG), GRADE)
-Base.getindex(b::Blade,i::Int) = b.v[i]
+@generated Blade{SIG,GRADE}(args...) where {SIG,GRADE} = begin
+    T = promote_type(args...)
+    N = internal_size(Blade{SIG,GRADE})
+    len = length(args)
+    @assert N == len "wrong number of elements: expected $N got $len"
+    return quote
+        Blade{$SIG,$GRADE,$N,$T}($T.(args))
+    end
+end
+@generated as_tuple(e::Blade{SIG,GRADE,N,T}) where {SIG,GRADE,N,T} = begin 
+    TType = Tuple{ntuple(i->E{sig(e),grade(e),i,T},internal_size(e))...}
+    return quote 
+        reinterpret_tuple($TType,e.v)
+    end
+end
+Base.getindex(e::Blade,i::Int) = as_tuple(e)[i]
+    
 
 
-
-
-struct MultiBlade{SIG,T<:NTuple{N,Blade{SIG}} where N } <: Algebra{SIG}
-    v::T
+struct MultiBlade{SIG,N,T} <: GradedAlgebra{SIG}
+    v::NTuple{N,T}
 end
 export MultiBlade
-Base.getindex(mb::MultiBlade,i::Int) = mb.v[i]
-
-
-
-
-
+@generated MultiBlade{SIG}(args...) where {SIG} = begin
+    T = promote_type(args...)
+    N = internal_size(MultiBlade{SIG})
+    len = length(args)
+    @assert N == len "wrong number of elements: expected $N got $len"
+    return quote
+        MultiBlade{$SIG,$N,$T}($T.(args))
+    end
+end
+@generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
+    TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
+    return quote 
+        reinterpret_tuple($TType,e.v)
+    end
+end
+Base.getindex(e::MultiBlade,i::Int) = as_tuple(e)[i+1]
+    
