@@ -39,7 +39,7 @@ export FieldType
 
 struct E{SIG,GRADE,IDX,T} <: GradeElement{SIG,GRADE,IDX} #IDX is the index inside the GRADE
     v::T
-    E{SIG,GRADE,IDX,T}(arg::Union{T,Tuple{T}}) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(arg[1])
+    E{SIG,GRADE,IDX,T}(arg::Union{T,Tuple{T}}) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(T(arg[1]))
 end
 export E
 @generated E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} = begin
@@ -86,7 +86,7 @@ export MultiBlade
     return quote
         MultiBlade{$SIG,$N,$T}($T.(args))
     end
-end
+end 
 @generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
     TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
     return quote 
@@ -109,5 +109,3 @@ end
     MultiBlade{sig(metatype(e)),internal_size(metatype(e)),T}
 end
 export similar_type
-
-

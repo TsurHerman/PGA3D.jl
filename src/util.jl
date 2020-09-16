@@ -47,3 +47,27 @@ make_type(SIG,ct::Tuple) = begin
     return E{SIG,grade,idx}
 end
 
+
+
+macro basis(SIG,gylph = "v" ,start_index = 1)
+    quote 
+        element_gylph($gylph,$start_index)
+        mb = zero(MultiBlade{$SIG})
+        eval_string = ""
+        for bi in 0:length(mb)-1
+            for ei in 1:length(mb[bi])
+                global eval_string
+                e = mb[bi][ei]
+                indices = to_index_tuple(sig(e),grade(e),index(e))
+                indices = indices .- (1 - gylph_start_index[])
+                vsym = foldl(*,string.(indices);init = gylph[])
+                vsym = Symbol(vsym)
+                T = similar_type(e,Float32)
+
+                eval_string = eval_string *  "const $vsym = $T(Float32(1)) ;" |> Base.Meta.parse
+            end
+        end
+        eval_string
+    end
+end
+

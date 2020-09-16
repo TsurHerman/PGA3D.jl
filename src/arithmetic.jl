@@ -1,7 +1,7 @@
 
 # cached zero values
 Base.zero(e::Meta{GradedAlgebra}) = zero(Int8,e)
-@generated Base.zero(dt::Type{T},e::Meta{GradedAlgebra}) where T = similar_type(metatype(e),T)(ntuple(i->zero(T),length(metatype(e))))
+@generated Base.zero(dt::Type{T},e::Meta{GradedAlgebra}) where T = similar_type(metatype(e),T)(ntuple(i->zero(T),internal_size(metatype(e))))
 Base.iszero(e::GradedAlgebra) = all(iszero.(e.v))
 
 

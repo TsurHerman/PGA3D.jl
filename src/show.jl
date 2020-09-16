@@ -1,14 +1,21 @@
 
-@generated to_symbol(::E{SIG,GRADE,IDX}) where {SIG,GRADE,IDX} = begin
+to_symbol(::Meta{E{SIG,GRADE,IDX}}) where {SIG,GRADE,IDX} = begin
     indices = to_index_tuple(SIG,GRADE,IDX)
-    return foldl(*,Char.( 8320 .+ indices);init ="v")
+    indices = indices .- (1 - gylph_start_index[])
+    return foldl(*,Char.( 8320 .+ indices);init = gylph[])
 end
 
 export to_symbol
-@generated to_symbol(SIG::NTuple{N,Int} where N) = begin
-    map(x->iszero(x) ? "0" : x>0 ? "+" : "-",(1,1,1,0)) |> prod
+to_symbol(SIG::NTuple{N,Int} where N) = begin
+    map(x->iszero(x) ? "0" : x>0 ? "+" : "-",SIG )|> prod
 end
 
+const gylph = Ref("v")
+const gylph_start_index = Ref(1)
+element_gylph(s::String,start_index::Int) = begin
+    gylph[] = s
+    gylph_start_index[] = start_index
+end
 
 
 Base.show(io::IO, e::E)  = begin
@@ -52,7 +59,7 @@ Base.show(io::IO, mb::MultiBlade{SIG}) where {SIG} = begin
         b = mb[i-1]
         if iszero(grade(b)) || !iszero(b)
             write(io,"\n")
-            show(IOContext(io, :compact => true),mime,b)
+            show(IOContext(io, :compact => true),b)
         end
     end
 end

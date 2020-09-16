@@ -1,4 +1,6 @@
 using PGA3D
+PGA3D.element_gylph("V",0)
+
 using LinearAlgebra
 using BenchmarkTools
 
@@ -21,6 +23,8 @@ v123 = E{SIG,3,1}(1)
 
 
 
+
+
 # wedge(v2,v1)
 
 
@@ -39,5 +43,3 @@ p(a,b,c,d) = a*v1+b*v2+c*v3+d*v4
 
 b1 = p(1,2,3,4)
 b2 = p(13.,.32,3.3,2.4)
-
-
