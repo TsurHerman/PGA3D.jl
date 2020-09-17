@@ -1,7 +1,7 @@
 
 # cached zero values
 Base.zero(e::Meta{GradedAlgebra}) = zero(Int8,e)
-@generated Base.zero(dt::Type{T},e::Meta{GradedAlgebra}) where T = similar_type(metatype(e),T)(ntuple(i->zero(T),internal_size(metatype(e))))
+@generated Base.zero(dt::Type{T},e::Meta{GradedAlgebra}) where T = similar_type(e,T)(ntuple(i->zero(T),internal_size(e)))
 Base.iszero(e::GradedAlgebra) = all(iszero.(e.v))
 
 
@@ -46,7 +46,7 @@ Base.:-(a::GradedAlgebra,b::GradedAlgebra)  = a + (-b)
 Base.:*(a::Number,b::GradedAlgebra)  = *(b,a)
 @generated Base.:*(a::GradedAlgebra,b::Number)  = begin
     len = internal_size(a)
-    T = promote_type(FieldType(a),b)
+    T = promote_type(internal_type(a),b)
     typ = similar_type(a,T)
 
     tup = [:( *(a.v[$i],b) ) for i=1:len] |> Tuple
@@ -59,11 +59,11 @@ Base.:/(a::GradedAlgebra,b::Number)  = *(a,inv(b))
 
 
 @generated lift(e::E) = begin
-    SIG = sig(metatype(e))
-    GRADE = grade(metatype(e))
+    SIG = sig(e)
+    GRADE = grade(e)
     N = internal_size(Blade{SIG,GRADE})
-    T = FieldType(metatype(e))
-    vals = ntuple(i->isequal(i,index(metatype(e))) ? "e.v," : "zero(e.v),",N)
+    T = internal_type(e)
+    vals = ntuple(i->isequal(i,index(e)) ? "e.v," : "zero(e.v),",N)
     
     "Blade{$SIG,$GRADE,$N,$T}( ($(prod(vals))) )" |> Base.Meta.parse
 end
@@ -73,7 +73,7 @@ export lift
     SIG = sig(b)
     MB = MultiBlade{SIG}
     N = internal_size(MB)
-    T = FieldType(b)
+    T = internal_type(b)
     _start_index = foldl(+,binomial.(length(sig(b)),0:grade(b)-1)) + 1
     sexpr = map(1:internal_size(MB)) do i
         i >= _start_index && i < (_start_index + internal_size(b)) ? "b.v[$(i-_start_index + 1)]," : "zero($T),"
@@ -83,7 +83,7 @@ end
 
 @generated unroll_plus(a::GradedAlgebra,b::GradedAlgebra) = begin
     len = internal_size(a)
-    T = promote_type(FieldType(a),FieldType(b))
+    T = promote_type(internal_type(a),internal_type(b))
     typ = similar_type(a,T)
 
     tup = [:( approax_plus(a.v[$i],b.v[$i]) ) for i=1:len] 

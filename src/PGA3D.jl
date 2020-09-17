@@ -1,12 +1,17 @@
 module PGA3D
-import StaticArrays
 
-# a hack and slash reinterpret tuple , which unfortunately requires StaticArrays to be imported
-@generated reinterpret_tuple(T,x::NTuple) = quote 
-    Base.@_inline_meta
-    x =length(x) == 1 ? (x,) : x
-    first(reinterpret(T,StaticArrays.SArray{Tuple{1},$x,1,1}(x)))
+# a BitCasting for tuples hopefuly compiler friendly
+struct BitCast{S,T} <: AbstractVector{T}
+    v::T
+    BitCast{S}(v::T) where {S,T} = begin
+        a = new{S,T}(v)
+        reinterpret(S,a)[1]
+    end
 end
+Base.@pure Base.size(::BitCast) = (1,)
+@inline Base.getindex(@nospecialize a::BitCast) = a.v
+@inline Base.getindex((@nospecialize a::BitCast),x) = a.v
+
 
 include("util.jl")
 include("types.jl")
