@@ -68,6 +68,12 @@ export Blade
         Blade{$SIG,$GRADE,$N,$T}($T.(args))
     end
 end
+@generated as_tuple(e::Blade{SIG,GRADE,N,T}) where {SIG,GRADE,N,T} = begin 
+    TType = Tuple{ntuple(i->E{sig(e),grade(e),i,T},internal_size(e))...}
+    return quote 
+        bitcast($TType,e.v)
+    end
+end
 Base.getindex(e::Blade,i::Int) = _getindex(e,Val{i}())
 @generated _getindex(e::Blade,::Val{i}) where i = quote 
     E{$(sig(e)),$(grade(e)),i,$(internal_type(e))}(e.v[i])
@@ -87,12 +93,16 @@ export MultiBlade
     return quote
         MultiBlade{$SIG,$N,$T}($T.(args))
     end
-end 
+end
+@generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
+    TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
+    return quote 
+        bitcast($TType,e.v)
+    end
+end
 Base.getindex(e::MultiBlade,i::Int) = _getindex(e,Val{i}())
-
-
 @generated _getindex(mb::MultiBlade,::Val{i}) where i = begin
-    SIG = sig(b)
+    SIG = sig(mb)
     B = Blade{SIG,i}
     N = internal_size(B)
     T = internal_type(mb)
@@ -100,7 +110,7 @@ Base.getindex(e::MultiBlade,i::Int) = _getindex(e,Val{i}())
     sexpr = map(1:internal_size(B)) do i
         "mb.v[$(si + i + -1)],"
     end
-    "Blade{$SIG,$N,$T}( ($(prod(sexpr))) )" |> Base.Meta.parse
+    "Blade{$SIG,i,$N,$T}( ($(prod(sexpr))) )" |> Base.Meta.parse
 end
 
 
