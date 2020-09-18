@@ -102,6 +102,9 @@ end
 end
 Base.getindex(e::MultiBlade,i::Int) = _getindex(e,Val{i}())
 @generated _getindex(mb::MultiBlade,::Val{i}) where i = begin
+    return quote 
+        as_tuple(e)[i+1]
+    end
     SIG = sig(mb)
     B = Blade{SIG,i}
     N = internal_size(B)

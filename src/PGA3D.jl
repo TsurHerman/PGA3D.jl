@@ -18,13 +18,13 @@ include("types.jl")
 include("arithmetic.jl")
 include("show.jl")
 
-# include("products.jl")
+include("products.jl")
 
 
 
-# export wedge
-# const ∧ = wedge
-# export ∧
+export wedge
+const ∧ = wedge
+export ∧
 
 greet() = print("Hello World!")
 
