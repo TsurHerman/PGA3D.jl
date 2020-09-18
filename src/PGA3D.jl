@@ -3,14 +3,14 @@ module PGA3D
 # a BitCasting for tuples hopefuly compiler friendly
 struct BitCast{S,T} <: AbstractVector{T}
     v::T
-    BitCast{S}(v::T) where {S,T} = begin
-        a = new{S,T}(v)
-        reinterpret(S,a)[1]
-    end
 end
 Base.@pure Base.size(::BitCast) = (1,)
-@inline Base.getindex(@nospecialize a::BitCast) = a.v
-@inline Base.getindex((@nospecialize a::BitCast),x) = a.v
+Base.getindex(a::BitCast) = a.v
+Base.getindex(a::BitCast,x) = a.v
+
+@generated bitcast(::Type{S},v) where S = quote 
+    reinterpret(S,BitCast{$S,$v}(v))[1]
+end
 
 
 include("util.jl")

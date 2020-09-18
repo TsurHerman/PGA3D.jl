@@ -1,12 +1,11 @@
 using Base
-using Base: @pure
 
 # Meta mechanism to simplify access to type meta parameters 
 # from type instances(values) UnionAll types (where types) and Type{} types (in generated functions)
 
-const Meta = Union{T,Type{S},Type{Type{S}}} where {T,S<:T}
+const Meta = Union{T,Type{S},Type{Type{S}},Type{Type{Type{S}}},Type{Type{Type{Type{S}}}}} where {T,S<:T}
 
-@generated  metatype(a) = begin
+@generated metatype(a) = begin
     b = Base.unwrap_unionall(a)
     while(b.name === Type.body.name)
         b = Base.unwrap_unionall(b.parameters[1])
@@ -15,25 +14,29 @@ const Meta = Union{T,Type{S},Type{Type{S}}} where {T,S<:T}
 end
 export metatype
 
-@pure meta_params(a,i) = metatype(a).parameters[i]
-
+meta_params(a,i) = meta_params(a,Val{i}())
+@generated meta_params(a,::Val{i}) where i = begin
+    metatype(a).parameters[i]
+end
 
 abstract type GradedAlgebra{SIG} <: Number end
-@pure sig(e::Meta{GradedAlgebra}) = meta_params(e,1)
-@pure Base.length(e::Meta{GradedAlgebra}) = length(sig(e)) + 1
-@pure internal_size(e::Meta{GradedAlgebra}) = 2^length(sig(e))
+@generated sig(e::Meta{GradedAlgebra}) = meta_params(e,1)
+@generated Base.length(e::Meta{GradedAlgebra}) = length(sig(e)) + 1
+@generated internal_size(e::Meta{GradedAlgebra}) = 2^length(sig(e))
 
 abstract type Grade{SIG,GRADE} <: GradedAlgebra{SIG} end
-@pure grade(e::Meta{Grade}) = meta_params(e,2)
-@pure Base.length(e::Meta{Grade}) = binomial(length(sig(e)),grade(e))
-@pure internal_size(e::Meta{Grade}) = length(e)
+@generated grade(e::Meta{Grade}) = meta_params(e,2)
+@generated Base.length(e::Meta{Grade}) = binomial(length(sig(e)),grade(e))
+@generated internal_size(e::Meta{Grade}) = length(e)
+@generated index(e::Meta{Grade}) = foldl(+,binomial.(length(sig(e)),0:grade(e)-1)) + 1
+
 
 abstract type GradeElement{SIG,GRADE,IDX} <: Grade{SIG,GRADE} end
-@pure index(e::Meta{GradeElement}) = meta_params(e,3)
-@pure Base.length(e::Meta{GradeElement}) = 1
-@pure internal_size(e::Meta{GradeElement}) = 1
+@generated index(e::Meta{GradeElement}) = meta_params(e,3)
+@generated Base.length(e::Meta{GradeElement}) = 1
+@generated internal_size(e::Meta{GradeElement}) = 1
 
-@pure internal_type(e::Meta{GradedAlgebra}) = e.parameters[end]
+@generated internal_type(e::Meta{GradedAlgebra}) = metatype(e).parameters[end]
 export internal_type
 
 
@@ -68,7 +71,7 @@ end
 @generated as_tuple(e::Blade{SIG,GRADE,N,T}) where {SIG,GRADE,N,T} = begin 
     TType = Tuple{ntuple(i->E{sig(e),grade(e),i,T},internal_size(e))...}
     return quote 
-        BitCast{$TType}(e.v)
+        bitcast($TType,e.v)
     end
 end
 Base.getindex(e::Blade,i::Int) = E{sig(e),grade(e),i,typeof(e.v[i])}(e.v[i])
@@ -91,7 +94,7 @@ end
 @generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
     TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
     return quote 
-        BitCast{$TType}(e.v)
+        bitcast($TType,e.v)
     end
 end
 Base.getindex(e::MultiBlade,i::Int) = as_tuple(e)[i+1]
