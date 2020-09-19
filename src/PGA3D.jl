@@ -8,7 +8,9 @@ Base.@pure Base.size(::BitCast) = (1,)
 Base.getindex(a::BitCast) = a.v
 Base.getindex(a::BitCast,x) = a.v
 
-@generated bitcast(::Type{S},v) where S = quote 
+@generated bitcast(::Type{S},v) where S = quote
+    Base.@_inline_meta
+    Base.@_propagate_inbounds_meta
     reinterpret(S,BitCast{$S,$v}(v))[1]
 end
 

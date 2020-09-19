@@ -19,12 +19,12 @@ meta_params(a,i) = meta_params(a,Val{i}())
     metatype(a).parameters[i]
 end
 
-abstract type GradedAlgebra{SIG} <: Number end
-@generated sig(e::Meta{GradedAlgebra}) = meta_params(e,1)
-@generated Base.length(e::Meta{GradedAlgebra}) = length(sig(e)) + 1
-@generated internal_size(e::Meta{GradedAlgebra}) = 2^length(sig(e))
+abstract type Algebra{SIG} <: Number end
+@generated sig(e::Meta{Algebra}) = meta_params(e,1)
+@generated Base.length(e::Meta{Algebra}) = length(sig(e)) + 1
+@generated internal_size(e::Meta{Algebra}) = 2^length(sig(e))
 
-abstract type Grade{SIG,GRADE} <: GradedAlgebra{SIG} end
+abstract type Grade{SIG,GRADE} <: Algebra{SIG} end
 @generated grade(e::Meta{Grade}) = meta_params(e,2)
 @generated Base.length(e::Meta{Grade}) = binomial(length(sig(e)),grade(e))
 @generated internal_size(e::Meta{Grade}) = length(e)
@@ -36,7 +36,7 @@ abstract type GradeElement{SIG,GRADE,IDX} <: Grade{SIG,GRADE} end
 @generated Base.length(e::Meta{GradeElement}) = 1
 @generated internal_size(e::Meta{GradeElement}) = 1
 
-@generated internal_type(e::Meta{GradedAlgebra}) = metatype(e).parameters[end]
+@generated internal_type(e::Meta{Algebra}) = metatype(e).parameters[end]
 export internal_type
 
 
@@ -46,11 +46,7 @@ struct E{SIG,GRADE,IDX,T} <: GradeElement{SIG,GRADE,IDX} #IDX is the index insid
     E{SIG,GRADE,IDX,T}(arg::Union{T,Tuple{T}}) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(T(arg[1]))
 end
 export E
-@generated E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} = begin
-    return quote
-        E{SIG,GRADE,IDX,$arg}(arg)
-    end
-end 
+E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} =  E{SIG,GRADE,IDX,typeof(arg)}(arg)
 
 
 
@@ -68,20 +64,10 @@ export Blade
         Blade{$SIG,$GRADE,$N,$T}($T.(args))
     end
 end
-@generated as_tuple(e::Blade{SIG,GRADE,N,T}) where {SIG,GRADE,N,T} = begin 
-    TType = Tuple{ntuple(i->E{sig(e),grade(e),i,T},internal_size(e))...}
-    return quote 
-        bitcast($TType,e.v)
-    end
-end
-Base.getindex(e::Blade,i::Int) = _getindex(e,Val{i}())
-@generated _getindex(e::Blade,::Val{i}) where i = quote 
-    E{$(sig(e)),$(grade(e)),i,$(internal_type(e))}(e.v[i])
-end
     
 
 
-struct MultiBlade{SIG,N,T} <: GradedAlgebra{SIG}
+struct MultiBlade{SIG,N,T} <: Algebra{SIG}
     v::NTuple{N,T}
 end
 export MultiBlade
@@ -94,29 +80,12 @@ export MultiBlade
         MultiBlade{$SIG,$N,$T}($T.(args))
     end
 end
-@generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
-    TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
-    return quote 
-        bitcast($TType,e.v)
-    end
-end
-Base.getindex(e::MultiBlade,i::Int) = _getindex(e,Val{i}())
-@generated _getindex(mb::MultiBlade,::Val{i}) where i = begin
-    return quote 
-        as_tuple(e)[i+1]
-    end
-    SIG = sig(mb)
-    B = Blade{SIG,i}
-    N = internal_size(B)
-    T = internal_type(mb)
-    si = index(B)
-    sexpr = map(1:internal_size(B)) do i
-        "mb.v[$(si + i + -1)],"
-    end
-    "Blade{$SIG,i,$N,$T}( ($(prod(sexpr))) )" |> Base.Meta.parse
-end
-
-
+# @generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
+#     TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
+#     return quote 
+#         bitcast($TType,e.v)
+#     end
+# end
 
 
 @generated similar_type(e::Meta{E},::Type{T}) where T = begin
@@ -129,3 +98,53 @@ end
     MultiBlade{sig(e),internal_size(e),T}
 end
 export similar_type
+
+
+
+Base.eltype(a::Algebra) = eltype(typeof(a))
+
+Base.eltype(a::Type{<:Algebra}) = Blade{sig(a),GRADE,N,internal_type(a)} where {GRADE,N}
+Base.eltype(a::Type{<:Grade}) = E{sig(a),grade(a),IDX,internal_type(a)} where {IDX}
+Base.eltype(a::Type{GradeElement}) = metatype(a)
+
+Base.eltype(a::Algebra,i) = eltype(typeof(a),i)
+Base.eltype(a::Type{<:Algebra},i) = eltype(a){i}
+Base.eltype(a::Type{<:GradeElement},i) = eltype(a)
+
+
+as_tuple(e::GradeElement) = e
+@generated as_tuple(e::Algebra) = begin
+    TType = Tuple{map(i->eltype(e,i),firstindex(e):lastindex(e))...}
+    expr = ntuple(i->"e,",length(e))
+    expr = "$TType((" * prod(expr) * "))"
+    expr |> Base.Meta.parse
+end
+
+Base.getindex(e::Blade,i::Int) = as_tuple(e)[i]
+Base.getindex(e::MultiBlade,i::Int) = as_tuple(e)[i+1]
+Base.getindex(e::E,i::Int) = e
+
+
+
+Base.firstindex(e::Meta{Algebra}) = 0
+Base.firstindex(e::Meta{Grade}) = 1
+Base.firstindex(e::Meta{GradeElement}) = 1
+
+Base.lastindex(e::Meta{Algebra}) = length(e) - 1
+Base.lastindex(e::Meta{Grade}) = length(e) 
+Base.lastindex(e::Meta{GradeElement}) = length(e) 
+
+E{SIG,GRADE,IDX,T}(a::Grade) where {SIG,GRADE,IDX,T} = E{SIG,GRADE,IDX,T}(a.v[IDX])
+Blade{SIG,GRADE,N,T}(a::Algebra) where {SIG,GRADE,N,T} = begin
+    TT = Blade{SIG,GRADE,N,T}
+    si = index(TT)
+    ei = si + N - 1
+    TT(a.v[si:ei])
+end
+Base.IteratorSize(e::Type{<:Algebra}) = Base.HasLength()
+Base.iterate(e::Algebra) = iterate(as_tuple(e))
+Base.iterate(e::Algebra,state) = iterate(as_tuple(e),state)
+Base.collect(e::Algebra) = as_tuple(e)
+
+# Base.iterate(e::E) = (e,nothing)
+# Base.iterate(e::E,state) = nothing

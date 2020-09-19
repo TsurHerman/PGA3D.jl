@@ -1,8 +1,8 @@
 
 # cached zero values
-Base.zero(e::Meta{GradedAlgebra}) = zero(internal_type(e),e)
-@generated Base.zero(dt::Type{T},e::Meta{GradedAlgebra}) where T = similar_type(e,T)(ntuple(i->zero(T),internal_size(e)))
-# Base.iszero(e::GradedAlgebra) = all(iszero.(e.v))
+Base.zero(e::Meta{Algebra}) = zero(internal_type(e),e)
+@generated Base.zero(dt::Type{T},e::Meta{Algebra}) where T = similar_type(e,T)(ntuple(i->zero(T),internal_size(e)))
+# Base.iszero(e::Algebra) = all(iszero.(e.v))
 
 
 #plus 
@@ -20,7 +20,7 @@ end
 Base.:+(a::MultiBlade{SIG},b::E{SIG}) where {SIG} = begin
     T = promote_type(internal_type(a),internal_type(b))
     TT = similar_type(a,T)
-    idx = index(Blade{sig(e),grade(e)}) - 1
+    idx = index(Blade{sig(a),grade(b)}) + index(b)- 1
     TT(Base.setindex(a.v,a.v[idx] + b.v,idx))
 end
 
@@ -31,7 +31,7 @@ Base.:+(a::Blade{SIG},b::Blade{SIG}) where SIG   = ifelse( (grade(a) == grade(b)
 Base.:+(a::MultiBlade{SIG},b::Blade{SIG}) where {SIG} = a + lift(b)
 Base.:+(a::MultiBlade{SIG},b::MultiBlade{SIG}) where {SIG} = unroll_plus(a,b)
 
-Base.:+(a::GradedAlgebra, b::GradedAlgebra) = +(b,a) # if you dont know what to do switch sides
+Base.:+(a::Algebra, b::Algebra) = +(b,a) # if you dont know what to do switch sides
 
 
 lift(e::E) = begin 
@@ -56,25 +56,24 @@ end
 
 
 
-# iszero check to avoid un-nesseceary widening
-Base.:+(a::GradedAlgebra,b::Number)  = iszero(b) ? a : a + E{sig(a),0,1}(b)
-Base.:+(a::Number,b::GradedAlgebra)  = +(b,a)
+Base.:+(a::Algebra,b::Number)  = +(a , E{sig(a),0,1}(b))
+Base.:+(a::Number,b::Algebra)  = +(b,a)
 
 #minus is plus
-Base.:-(a::GradedAlgebra) = (-1) * a
-Base.:-(a::GradedAlgebra,b::Number)  = a + (-b)
-Base.:-(a::Number,b::GradedAlgebra)  = a + (-b)
-Base.:-(a::GradedAlgebra,b::GradedAlgebra)  = a + (-b)
+Base.:-(a::Algebra) = (-1) * a
+Base.:-(a::Algebra,b::Number)  = a + (-b)
+Base.:-(a::Number,b::Algebra)  = a + (-b)
+Base.:-(a::Algebra,b::Algebra)  = a + (-b)
   
 
-Base.:*(a::Number,b::GradedAlgebra)  = *(b,a)
-Base.:*(a::GradedAlgebra,b::Number)  = similar_type(typeof(a),typeof(b))(broadcast(*,a.v,b))
+Base.:*(a::Number,b::Algebra)  = *(b,a)
+Base.:*(a::Algebra,b::Number)  = similar_type(typeof(a),typeof(b))(broadcast(*,a.v,b))
 
-Base.:/(a::Number,b::GradedAlgebra)  = *(a,inv(b))
-Base.:/(a::GradedAlgebra,b::Number)  = *(a,inv(b))
+Base.:/(a::Number,b::Algebra)  = *(a,inv(b))
+Base.:/(a::Algebra,b::Number)  = *(a,inv(b))
 
 
-unroll_plus(a::GradedAlgebra,b::GradedAlgebra) = begin
+unroll_plus(a::Algebra,b::Algebra) = begin
     T = promote_type(internal_type(a),internal_type(b))
     similar_type(typeof(a),T)(broadcast(+,a.v,b.v))
 end
