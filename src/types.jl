@@ -55,14 +55,9 @@ struct Blade{SIG,GRADE,N,T} <: Grade{SIG,GRADE}
     v::NTuple{N,T}
 end
 export Blade
-@generated Blade{SIG,GRADE}(args...) where {SIG,GRADE} = begin
-    T = promote_type(args...)
-    N = internal_size(Blade{SIG,GRADE})
-    len = length(args)
-    @assert N == len "wrong number of elements: expected $N got $len"
-    return quote
-        Blade{$SIG,$GRADE,$N,$T}($T.(args))
-    end
+Blade{SIG,GRADE}(args...) where {SIG,GRADE} = begin
+    _args = promote(args...)
+    Blade{SIG,GRADE,internal_size(Blade{SIG,GRADE}),eltype(_args)}(_args)
 end
     
 
@@ -71,24 +66,18 @@ struct MultiBlade{SIG,N,T} <: Algebra{SIG}
     v::NTuple{N,T}
 end
 export MultiBlade
-@generated MultiBlade{SIG}(args...) where {SIG} = begin
-    T = promote_type(args...)
-    N = internal_size(MultiBlade{SIG})
-    len = length(args)
-    @assert N == len "wrong number of elements: expected $N got $len"
-    return quote
-        MultiBlade{$SIG,$N,$T}($T.(args))
-    end
+MultiBlade{SIG}(args...) where {SIG} = begin
+    _args = promote(args...)
+    MultiBlade{SIG,internal_size(MultiBlade{SIG}),eltype(_args)}(_args)
 end
 
-
-@generated similar_type(e::Meta{E},::Type{T}) where T = begin
+similar_type(e::Meta{E},::Type{T}) where T = begin
     E{sig(e),grade(e),index(e),T}
 end
-@generated similar_type(e::Meta{Blade},::Type{T}) where T = begin
+similar_type(e::Meta{Blade},::Type{T}) where T = begin
     Blade{sig(e),grade(e),length(e),T}
 end
-@generated similar_type(e::Meta{MultiBlade},::Type{T}) where {T} = begin
+similar_type(e::Meta{MultiBlade},::Type{T}) where {T} = begin
     MultiBlade{sig(e),internal_size(e),T}
 end
 export similar_type
@@ -116,8 +105,8 @@ as_tuple(e::GradeElement) = e
     expr |> Base.Meta.parse
 end
 
-Base.getindex(e::Blade,i::Int) = as_tuple(e)[i]
-Base.getindex(e::MultiBlade,i::Int) = as_tuple(e)[i+1]
+Base.getindex(e::Blade,i::Int) = eltype(e,i)(e)
+Base.getindex(e::MultiBlade,grade::Int) = eltype(e,grade)(e)
 Base.getindex(e::E,i::Int) = e
 
 
@@ -131,16 +120,17 @@ Base.lastindex(e::Meta{Grade}) = length(e)
 Base.lastindex(e::Meta{GradeElement}) = length(e) 
 
 E{SIG,GRADE,IDX,T}(a::Grade) where {SIG,GRADE,IDX,T} = E{SIG,GRADE,IDX,T}(a.v[IDX])
-Blade{SIG,GRADE,N,T}(a::Algebra) where {SIG,GRADE,N,T} = begin
+Blade{SIG,GRADE,N,T}(a::MultiBlade) where {SIG,GRADE,N,T} = begin
     TT = Blade{SIG,GRADE,N,T}
-    si = index(TT)
+    si = index(TT)   
     ei = si + N - 1
     TT(a.v[si:ei])
 end
+
+
 Base.IteratorSize(e::Type{<:Algebra}) = Base.HasLength()
-Base.iterate(e::Algebra) = iterate(as_tuple(e))
-Base.iterate(e::Algebra,state) = iterate(as_tuple(e),state)
-Base.collect(e::Algebra) = as_tuple(e)
+Base.iterate(e::Algebra) = (e[firstindex(e)],firstindex(e) + 1)
+Base.iterate(e::Algebra,state) = state > lastindex(e) ? nothing : (e[state] , state + 1)
 
 Base.iterate(e::E) = (e,nothing)
 Base.iterate(e::E,state) = nothing

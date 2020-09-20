@@ -47,36 +47,3 @@ b2 = p(13.,.32,3.3,2.4)
 
 
 
-
-
-using PGA3D: sig ,grade, index
-
-
-a = typeof(b1)
-TType_a = map(i->eltype(a,i),firstindex(a):lastindex(a))
-b = typeof(b2)
-TType_b = map(i->eltype(b,i),firstindex(b):lastindex(b))
-
-table = [(TType_a[i] *TType_b[j],(i,j)) for i in eachindex(TType_a) , j in eachindex(TType_b)]
-out_table = [Vector{Any}() for i = 1:length(Blade{sig(a),grade(a) + grade(b)})]
-foreach(table) do tt
-    t = tt[1] 
-    iszero(t[2]) && return
-    grade(t[1]) != grade(a) + grade(b) && return
-    push!(out_table[index(t[1])],(tt[2]...,t[2]))
-end
-
-
-ret = foldl(map(out_table) do v
-    foldl(map(v) do t
-        if t[3] == 1 
-            "a.v[$(t[1])] * b.v[$(t[2])]"
-        else
-            "b.v[$(t[2])] * a.v[$(t[1])]"
-        end
-    end) do l,r
-        "$l + $r"
-    end
-end) do l,r
-    "$l,$r"
-end
