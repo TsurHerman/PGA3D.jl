@@ -67,7 +67,7 @@ Base.:-(a::Algebra,b::Algebra)  = a + (-b)
   
 
 Base.:*(a::Number,b::Algebra)  = *(b,a)
-Base.:*(a::Algebra,b::Number)  = similar_type(typeof(a),typeof(b))(broadcast(*,a.v,b))
+Base.:*(a::Algebra,b::Number)  = similar_type(typeof(a),promote_type(internal_type(a),typeof(b)))(broadcast(*,a.v,b))
 
 Base.:/(a::Number,b::Algebra)  = *(a,inv(b))
 Base.:/(a::Algebra,b::Number)  = *(a,inv(b))

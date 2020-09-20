@@ -6,7 +6,7 @@ Base.:+(::Nothing, ::Nothing) = nothing
 
 
 
-wedge(a::Type{<:E{SIG,GRADE1,IDX1,T1}},b::Type{<:E{SIG,GRADE2,IDX2,T2}}) where {SIG,GRADE1,GRADE2,IDX1,IDX2,T1,T2} = begin
+Base.:*(a::Type{<:E{SIG,GRADE1,IDX1,T1}},b::Type{<:E{SIG,GRADE2,IDX2,T2}}) where {SIG,GRADE1,GRADE2,IDX1,IDX2,T1,T2} = begin
     ct,cs = common_type(SIG,to_index_tuple(SIG,GRADE1,IDX1), to_index_tuple(SIG,GRADE2,IDX2))
     out_type = make_type(SIG,ct)
     return out_type{promote_type(T1,T2)},cs    
@@ -24,30 +24,33 @@ end
     end
 end
 
-# @generated wedge(a::Blade{SIG},b::Blade{SIG}) where SIG = begin
-#     grade(a) + grade(b) > lengths(SIG) && return nothing
-#     outype = Blade{SIG,grade(a) + grade(b),N,promote_types(internal_type(a),internal_type(b))} where N
-#     outype = outype{length(outype)}
-    
-#     out_type,cs = a*b
-#     @async @show a
-#     cs = grade(out_type) >= grade(a) + grade(b) ? cs : 0
+@generated wedge(a::Blade{SIG},b::Blade{SIG}) where SIG = begin
+    grade(a) + grade(b) > length(SIG) && return nothing
+    outype = Blade{SIG,grade(a) + grade(b),N,promote_type(internal_type(a),internal_type(b))} where N
+    outype = outype{length(outype)}
 
-#     return iszero(cs) ? nothing : isone(cs) ?  quote 
-#         $out_type(a.v * b.v)
-#     end : quote          
-#         $out_type(-a.v * b.v)
-#     end
-# end
-#     @async @show a
-#     cs = grade(out_type) >= grade(a) + grade(b) ? cs : 0
+    TType_a = map(i->eltype(a,i),firstindex(a):lastindex(a))
+    TType_b = map(i->eltype(b,i),firstindex(b):lastindex(b))
 
-#     return iszero(cs) ? nothing : isone(cs) ?  quote 
-#         $out_type(a.v * b.v)
-#     end : quote          
-#         $out_type(-a.v * b.v)
-#     end
-# end
+    table = [(TType_a[i] *TType_b[j],(i,j)) for i in eachindex(TType_a) , j in eachindex(TType_b)]
+    out_table = [Vector{Any}() for i = 1:length(Blade{sig(a),grade(a) + grade(b)})]
+    foreach(table) do tt
+        t = tt[1] 
+        iszero(t[2]) && return
+        grade(t[1]) != grade(a) + grade(b) && return
+        push!(out_table[index(t[1])],(tt[2]...,t[2]))
+    end
+    ret = foldl(map(out_table) do v
+        foldl(map(v) do t
+            "$(t[3])*a.v[$(t[1])] * b.v[$(t[2])]"
+        end) do l,r
+            "$l + $r"
+        end
+    end) do l,r
+        "$l,$r"
+    end
+    "$outype(($ret))" |> Base.Meta.parse
+end
 
 
 @generated dot(a::E,b::E) = begin
@@ -87,7 +90,7 @@ end
 
 
 unroll_product(fn::String,a::String,alen::Int,b::String,blen::Int) = begin
-    foldl("$fn($a[$i],$b[$j])" for i in alen:-1:1, j in 1:blen) do l,r
+    foldl("$fn($a[$i],$b[$j])" for i in 1:alen, j in 1:blen) do l,r
         l * " + " * r
     end |> Base.Meta.parse
 end

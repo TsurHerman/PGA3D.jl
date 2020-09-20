@@ -46,7 +46,7 @@ struct E{SIG,GRADE,IDX,T} <: GradeElement{SIG,GRADE,IDX} #IDX is the index insid
     E{SIG,GRADE,IDX,T}(arg::Union{T,Tuple{T}}) where {SIG,GRADE,IDX,T} = new{SIG,GRADE,IDX,T}(T(arg[1]))
 end
 export E
-E{SIG,GRADE,IDX}(arg) where {SIG,GRADE,IDX} =  E{SIG,GRADE,IDX,typeof(arg)}(arg)
+E{SIG,GRADE,IDX}(arg::T) where {SIG,GRADE,IDX,T} =  E{SIG,GRADE,IDX,T}(arg)
 
 
 
@@ -80,12 +80,6 @@ export MultiBlade
         MultiBlade{$SIG,$N,$T}($T.(args))
     end
 end
-# @generated as_tuple(e::MultiBlade{SIG,N,T}) where {SIG,N,T} = begin
-#     TType = Tuple{ntuple(i->Blade{SIG,i-1,internal_size(Blade{SIG,i-1}),T},length(SIG) + 1)...}
-#     return quote 
-#         bitcast($TType,e.v)
-#     end
-# end
 
 
 @generated similar_type(e::Meta{E},::Type{T}) where T = begin
@@ -108,8 +102,10 @@ Base.eltype(a::Type{<:Grade}) = E{sig(a),grade(a),IDX,internal_type(a)} where {I
 Base.eltype(a::Type{GradeElement}) = metatype(a)
 
 Base.eltype(a::Algebra,i) = eltype(typeof(a),i)
-Base.eltype(a::Type{<:Algebra},i) = eltype(a){i}
-Base.eltype(a::Type{<:GradeElement},i) = eltype(a)
+
+Base.eltype(a::Meta{MultiBlade},i) = eltype(a){i,length(eltype(a){i})}
+Base.eltype(a::Meta{Blade},i) = eltype(a){i}
+Base.eltype(a::Meta{E},i) = metatype(a)
 
 
 as_tuple(e::GradeElement) = e
@@ -146,5 +142,5 @@ Base.iterate(e::Algebra) = iterate(as_tuple(e))
 Base.iterate(e::Algebra,state) = iterate(as_tuple(e),state)
 Base.collect(e::Algebra) = as_tuple(e)
 
-# Base.iterate(e::E) = (e,nothing)
-# Base.iterate(e::E,state) = nothing
+Base.iterate(e::E) = (e,nothing)
+Base.iterate(e::E,state) = nothing
