@@ -1,5 +1,6 @@
 using PGA3D
-PGA3D.element_gylph("v",0)
+using LinearAlgebra
+PGA3D.element_gylph("v",1)
 
 using LinearAlgebra
 using BenchmarkTools
@@ -44,6 +45,5 @@ p(a,b,c,d) = a*v1+b*v2+c*v3+d*v4
 b1 = p(1,2,3,4)
 b2 = p(13.,.32,3.3,2.4)
 
-
-
+SIG = (1,1,1,0)
 

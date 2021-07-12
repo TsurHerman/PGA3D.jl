@@ -12,85 +12,147 @@ Base.:*(a::Type{<:E{SIG,GRADE1,IDX1,T1}},b::Type{<:E{SIG,GRADE2,IDX2,T2}}) where
     return out_type{promote_type(T1,T2)},cs    
 end
 
-@noinline @generated wedge(a::E,b::E) = begin
-    out_type,cs = wedge(a,b)
-    @async @show a
-    cs = grade(out_type) >= grade(a) + grade(b) ? cs : 0
-
-    return iszero(cs) ? nothing : isone(cs) ?  quote 
-        $out_type(a.v * b.v)
-    end : quote          
-        $out_type(-a.v * b.v)
-    end
-end
-
-@generated wedge(a::Blade{SIG},b::Blade{SIG}) where SIG = begin
-    grade(a) + grade(b) > length(SIG) && return nothing
-    outype = Blade{SIG,grade(a) + grade(b),N,promote_type(internal_type(a),internal_type(b))} where N
-    outype = outype{length(outype)}
-
-    TType_a = map(i->eltype(a,i),firstindex(a):lastindex(a))
-    TType_b = map(i->eltype(b,i),firstindex(b):lastindex(b))
-
-    table = [(TType_a[i] *TType_b[j],(i,j)) for i in eachindex(TType_a) , j in eachindex(TType_b)]
-    out_table = [Vector{Any}() for i = 1:length(Blade{sig(a),grade(a) + grade(b)})]
-    foreach(table) do tt
-        t = tt[1] 
-        iszero(t[2]) && return
-        grade(t[1]) != grade(a) + grade(b) && return
-        push!(out_table[index(t[1])],(tt[2]...,t[2]))
-    end
-    ret = foldl(map(out_table) do v
-        foldl(map(v) do t
-            "$(t[3])*a.v[$(t[1])] * b.v[$(t[2])]"
-        end) do l,r
-            "$l + $r"
-        end
-    end) do l,r
-        "$l,$r"
-    end
-    "$outype(($ret))" |> Base.Meta.parse
-end
-
-
-@generated dot(a::E,b::E) = begin
-    out_type,cs = a*b
-    cs = grade(out_type) < grade(a) + grade(b) ? cs : 0
-    
-    return iszero(cs) ? nothing : isone(cs) ?  quote 
-        $out_type(a.v * b.v)
-    end : quote          
-        $out_type(-a.v * b.v)
-    end
-end
-
 # products
 @generated Base.length(tt::Type{T}) where T<:Tuple = length(metatype(tt).parameters)
 
-# wedge(a,b) = _wedge(as_tuple(a),as_tuple(b))
-
-@generated wedge(a , b)= begin quote 
-        Base.@_inline_meta
-        $(unroll_product("wedge","a",length(a),"b",length(b)))
-    end
-end
-
-@generated dot(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
-    unroll_product("dot","a",length(a),"b",length(b))
-end
-
-Base.:*(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
+@inline Base.:*(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
     a ⋅ b + a ∧ b
 end
 
 
+wedge_table(a::Type{<:Algebra{SIG}}, b::Type{<:Algebra{SIG}}) where SIG = begin
+    a = meta(a);b=meta(b)
+    ca = collect_elements(a)
+    cb = collect_elements(b)
+    
+    table = map(Iterators.product(ca,cb)) do cacb
+        va = cacb[1][2]
+        vb = cacb[2][2]
+        ea = cacb[1][1]
+        eb = cacb[2][1]
 
-
-
-
-
-unroll_product(fn::String,a::String,alen::Int,b::String,blen::Int) = begin
-    foldl("$fn($a[$i],$b[$j])" for i in 1:alen, j in 1:blen) do l,r
-        l * " + " * r
-    end |> Base.Meta.parse
+        res = ea*eb
+        res = grade(ea) + grade(eb) == grade(res[1]) ? res : (res[1],0)
+        (res,(va,vb))
+    end
+    grade_table = [ [[] for i=1:length(Blade{SIG,grade})] for grade = 0:length(SIG)]
+    foreach(table) do tt
+        typ = tt[1][1]
+        sgn = tt[1][2]
+        res = (tt[2]...,sgn)
+        iszero(sgn) && return
+        push!(grade_table[grade(typ)+1][index(typ)],res)
+    end
+    grade_table
 end
+
+dot_table(a::Type{<:Algebra{SIG}}, b::Type{<:Algebra{SIG}}) where SIG = begin
+    a = meta(a);b=meta(b)
+    ca = collect_elements(a)
+    cb = collect_elements(b)
+    
+    table = map(Iterators.product(ca,cb)) do cacb
+        va = cacb[1][2]
+        vb = cacb[2][2]
+        ea = cacb[1][1]
+        eb = cacb[2][1]
+
+        res = ea*eb
+        res = grade(ea) + grade(eb) == grade(res[1]) ? (res[1],0) : res
+        (res,(va,vb))
+    end
+    grade_table = [ [[] for i=1:length(Blade{SIG,grade})] for grade = 0:length(SIG)]
+    foreach(table) do tt
+        typ = tt[1][1]
+        sgn = tt[1][2]
+        res = (tt[2]...,sgn)
+        iszero(sgn) && return
+        push!(grade_table[grade(typ)+1][index(typ)],res)
+    end
+    grade_table
+end
+
+
+@generated wedge(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
+    T = promote_type(internal_type(a),internal_type(b))
+    grade_table = wedge_table(a,b)
+
+    sizes = [!all(isempty.(grade_table[i])) for i=1:length(SIG)+1]
+    sum(sizes) == 0 && return 0
+    ret = if sum(sizes) > 1
+        "MultiBlade{$SIG,$(internal_size(MultiBlade{SIG})),$T}(($(unroll(grade_table))),)"
+    else
+        blade = grade_table[findfirst(sizes)]
+        
+        all(isempty.(blade)) && return 0
+        sizes = (!isempty).(blade)
+        ret = if sum(sizes) == 1 
+            "E{$SIG,$(grade(a) + grade(b)),$(findfirst(sizes)),$T}(($(unroll(blade[findfirst(sizes)]))))"
+        else
+            N = length(Blade{SIG,grade(a) + grade(b)})
+            "Blade{$SIG,$(grade(a) + grade(b)),$N,$T}(($(unroll(blade))))"
+        end
+    end
+    quote 
+        Base.@_inline_meta
+        $(Base.Meta.parse(ret))
+    end
+end
+
+@generated dot(a::Algebra{SIG},b::Algebra{SIG}) where SIG = begin
+    T = promote_type(internal_type(a),internal_type(b))
+    grade_table = dot_table(a,b)
+
+    sizes = [!all(isempty.(grade_table[i])) for i=1:length(SIG)+1]
+    sum(sizes) == 0 && return 0
+    ret = if sum(sizes) > 1
+        "MultiBlade{$SIG,$(internal_size(MultiBlade{SIG})),$T}(($(unroll(grade_table))),)"
+    else
+        grade = findfirst(sizes) - 1
+        blade = grade_table[grade + 1]
+        
+        all(isempty.(blade)) && return 0
+        sizes = (!isempty).(blade)
+        ret = if sum(sizes) == 1 
+            "E{$SIG,$(grade),$(findfirst(sizes)),$T}(($(unroll(blade[findfirst(sizes)]))))"
+        else
+            N = length(Blade{SIG,grade})
+            "Blade{$SIG,$(grade),$N,$T}(($(unroll(blade))))"
+        end
+    end
+    quote 
+        Base.@_inline_meta
+        $(Base.Meta.parse(ret))
+    end
+end
+
+
+Base.:~(e::E) = (grade(e) % 2 == 0) ? -e : e
+Base.:~(e::Blade) = (grade(e) % 2 == 0) ? -e : e
+Base.:~(e::MultiBlade) = begin
+    typeof(e)(map(collect(e)) do e
+        (~e).v
+    end |> Iterators.flatten |> collect )
+end
+
+
+unroll(c::Array{Array{Any,1},1}) = begin
+    terms = map(c) do t
+        isempty(t) ? "0" : unroll(t)
+    end
+    foldl(terms) do l,r
+        "$l , $r"
+    end
+end
+
+unroll(c::Array{Any,1}) = begin
+    terms = map(c) do t
+        "$(t[3])*a.v[$(t[1])] * b.v[$(t[2])]"
+    end
+    ret = foldl(terms) do l,r
+        "$l + $r"
+    end
+end
+
+unroll(c::Array{Array{Array{Any,1},1},1}) = unroll(collect(Iterators.flatten(c)))
+
